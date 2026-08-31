@@ -1,0 +1,35 @@
+---
+description: The entry point — given an intent (or none, to list all), shows or runs the command sequence that fills it. Maps "what are you here to do" to the right sush-* commands, in order.
+argument-hint: [intent, e.g. "new feature", "fix bugs", "orient myself", "ship readiness", "refactor", "catch up on changes" — omit to list all intents]
+---
+
+This is the runbook — the same idea as an incident-response runbook, but for "what am I here to do with this codebase," not "what alert just fired." Every entry below is an intent with a trigger, a command sequence, and whether a dedicated wrapper command already exists for it.
+
+## Known intents
+
+| Intent | Trigger — you're here because... | Sequence | Wrapper |
+|---|---|---|---|
+| **New feature** | You have a specific requirement to build. | `/sush-system-overview` → `/sush-explain-approach` (hard approval gate) → implement → `/sush-code-review` → `/sush-coverage` → `/sush-guardrails` | `/sush-new-feature-cycle` |
+| **Fix / harden existing system** | Something's wrong, or you want to find out what is, and fix it. | `/sush-system-overview` → `/sush-intent` → `/sush-blindspots` ↔ `/sush-harden` (loops to 2 dry rounds) | `/sush-fix-repo-cycle` |
+| **Orientation / onboarding** | You need to understand this codebase before touching anything — no changes intended yet. | `/sush-system-overview` → `/sush-intent`, then stop | `/sush-orient` |
+| **Catch up on recent changes** | Returning after time away, or reviewing someone else's work, and want to know what changed. | `/sush-explain-code-change` (add `/sush-code-review` too if you also want a quality judgment, not just a description) | `/sush-catch-up` |
+| **Ship-readiness / pre-release gate** | "Can this go out the door?" — not hunting for problems, confirming there's nothing blocking a release. | `/sush-coverage full` → `/sush-guardrails` → `/sush-code-review` (or the one-shot `/sush-change-full-review` instead of the three separately) | `/sush-ship-check` |
+| **Refactor without behavior change** | Restructuring code without adding a capability or changing what it does. | Same shape as new-feature, but frame the requirement to `/sush-explain-approach` as a refactor, and treat `/sush-coverage` afterward as proof nothing behaviorally changed, not just "is it tested" | `/sush-refactor-cycle` |
+| **Incident triage** | Something is actively broken right now, you have a specific symptom, and need root cause fast. | **Not covered.** `/sush-blindspots` is a broad, unhurried, whole-system sweep — wrong shape for "this one thing is on fire, trace it now." No dedicated command exists for symptom-first, time-pressured root-causing. | *(gap — see below)* |
+| **Security / compliance sweep** | You want to check just the security surface, not the whole system. | **Partially covered** — some `GUARDRAILS.md` rules are security-shaped, and `/sush-change-full-review`'s security-review step covers it as a side effect of a full review, but there's no standalone "security only" entry point. | *(partial — see below)* |
+
+## Behavior
+
+**No `$ARGUMENTS`**: print the table above (re-read from this file, don't paraphrase from memory in case it's been edited) and stop. Ask which intent to run — don't guess and start executing.
+
+**`$ARGUMENTS` given**: match it against the intents above (loosely — "I need to add X" → new feature, "something's broken"/"audit" → fix/harden, "just want to understand"/"onboarding" → orientation, "can we ship"/"release" → ship-readiness, "what changed"/"catch up" → catch up, "refactor"/"cleanup" → refactor). Then:
+
+1. **State which intent matched and the exact sequence about to run** (name the specific commands, in order — e.g. "This looks like *fix/harden*: `/sush-system-overview` → `/sush-intent` → `/sush-blindspots` ↔ `/sush-harden`"). **Ask for explicit go-ahead before starting anything.** This is a hard gate — do not begin step 1 of the sequence on an assumed yes, and do not treat a vague or ambiguous reply as approval. This is separate from (and in addition to) the per-step pauses within the sequence itself once it's running.
+2. Once approved:
+   - **If the matched intent has a wrapper command**: invoke that wrapper directly, passing through whatever's left of `$ARGUMENTS` after the intent phrase (e.g. `/sush-runbook new feature: add SMS notifications` → `/sush-new-feature-cycle add SMS notifications`). Don't re-implement its sequence here — delegate. This now covers all six defined intents (new feature, fix/harden, orientation, catch-up, ship-readiness, refactor) — each has a dedicated wrapper.
+   - **If the matched intent is a gap or partial** (incident triage, security sweep): say so plainly, as part of step 1's "here's what's about to run" — don't silently run the nearest approximation as if it were the real thing. For incident triage specifically, offer the closest fallback (a `/sush-blindspots` pass scoped to the symptom's subsystem via its argument) but name it as a fallback, not a fix for the gap, and the same go-ahead gate applies before running the fallback.
+- **If nothing matches confidently**: ask the user to clarify rather than guessing which intent they meant — don't reach the go-ahead gate on a guess.
+
+## When to use this
+
+The first thing to run when you're not sure which command (or sequence of commands) fits what you're about to do. If you already know exactly which command you want, just run it directly — this is for the "what do I even start with" moment, not a required detour.
